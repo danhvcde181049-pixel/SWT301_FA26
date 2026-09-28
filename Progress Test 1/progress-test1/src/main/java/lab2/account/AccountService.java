@@ -143,9 +143,8 @@ public class AccountService {
         }
 
         // Account đã bị khóa
-        if (acc.isLocked()) {
-            return ResultCode.ACCOUNT_LOCKED;
-        }
+        if (acc.isLocked()) return ResultCode.ACCOUNT_LOCKED;
+
 
         // Kiểm tra password
         boolean passwordCorrect = PasswordHasher.matches(
