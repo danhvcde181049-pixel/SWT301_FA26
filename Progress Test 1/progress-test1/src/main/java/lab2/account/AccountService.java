@@ -20,8 +20,17 @@ public class AccountService {
     public AccountService() {
     }
 
-    public ResultCode register(String username, String email, String password,
-                               String confirmPassword, LocalDate dateOfBirth, String phone) {
+    // =========================================================
+    // REGISTER
+    // =========================================================
+
+    public ResultCode register(
+            String username,
+            String email,
+            String password,
+            String confirmPassword,
+            LocalDate dateOfBirth,
+            String phone) {
 
         LocalDate today = LocalDate.now();
 
@@ -64,8 +73,8 @@ public class AccountService {
         }
 
         // 7. INVALID_PHONE
-        // null hoặc "" được chấp nhận
-        // "   " sẽ không hợp lệ
+        // null và "" được phép bỏ trống.
+        // "   " không hợp lệ.
         if (phone != null
                 && !phone.isEmpty()
                 && !AccountValidator.isValidPhone(phone)) {
@@ -87,10 +96,11 @@ public class AccountService {
             return ResultCode.DUPLICATE_EMAIL;
         }
 
-        // 10. Tạo tài khoản
+        // 10. CREATE ACCOUNT
         String salt = PasswordHasher.generateSalt();
 
-        String passwordHash = PasswordHasher.hash(salt, password);
+        String passwordHash =
+                PasswordHasher.hash(salt, password);
 
         Account account = new Account(
                 username,
@@ -108,43 +118,146 @@ public class AccountService {
         return ResultCode.SUCCESS;
     }
 
+    // =========================================================
+    // LOGIN
+    // =========================================================
+
     public ResultCode login(String username, String password) {
-        throw new UnsupportedOperationException("TODO");
-    }
 
-    public ResultCode changePassword(String username, String oldPassword,
-                                     String newPassword, String confirmPassword) {
-        throw new UnsupportedOperationException("TODO");
-    }
+        // Invalid input
+        if (isBlank(username) || isBlank(password)) {
+            return ResultCode.INVALID_INPUT;
+        }
 
-    public TokenResult requestPasswordReset(String email) {
-        throw new UnsupportedOperationException("TODO");
-    }
+        // Username không phân biệt hoa thường
+        Account acc = accountsByUsername.get(key(username));
 
-    public ResultCode resetPassword(String token, String newPassword,
-                                    String confirmPassword) {
-        throw new UnsupportedOperationException("TODO");
-    }
+        // User không tồn tại
+        if (acc == null) {
+            return ResultCode.INVALID_CREDENTIALS;
+        }
 
-    public ResultCode disableAccount(String username) {
-        throw new UnsupportedOperationException("TODO");
-    }
+        // Account bị disable
+        if (acc.getStatus() == AccountStatus.DISABLED) {
+            return ResultCode.ACCOUNT_DISABLED;
+        }
 
-    public Optional<Account> findByUsername(String username) {
-        Optional<Account> account = Optional.ofNullable(
-                accountsByUsername.get(key(username))
+        // Account đã bị khóa
+        if (acc.isLocked()) {
+            return ResultCode.ACCOUNT_LOCKED;
+        }
+
+        // Kiểm tra password
+        boolean passwordCorrect = PasswordHasher.matches(
+                acc.getSalt(),
+                password,
+                acc.getCurrentPasswordHash()
         );
 
-        return account;
+        // =====================================================
+        // PASSWORD SAI
+        // =====================================================
+
+        if (!passwordCorrect) {
+
+            // Tăng số lần nhập sai
+            acc.incrementFailedAttempts();
+
+            // Sai lần thứ 5 -> KHÓA NGAY
+            if (acc.getFailedAttempts() >= MAX_FAILED_ATTEMPTS) {
+                acc.lock();
+
+                return ResultCode.ACCOUNT_LOCKED;
+            }
+
+            // Sai lần 1 -> 4
+            return ResultCode.INVALID_CREDENTIALS;
+        }
+
+        // =====================================================
+        // PASSWORD ĐÚNG
+        // =====================================================
+
+        // Đăng nhập đúng thì reset counter
+        acc.resetFailedAttempts();
+
+        return ResultCode.SUCCESS;
     }
+
+    // =========================================================
+    // CHANGE PASSWORD
+    // =========================================================
+
+    public ResultCode changePassword(
+            String username,
+            String oldPassword,
+            String newPassword) {
+
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // =========================================================
+    // REQUEST PASSWORD RESET
+    // =========================================================
+
+    public TokenResult requestPasswordReset(String username) {
+
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // =========================================================
+    // RESET PASSWORD
+    // =========================================================
+
+    public ResultCode resetPassword(
+            String token,
+            String newPassword) {
+
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // =========================================================
+    // DISABLE ACCOUNT
+    // =========================================================
+
+    public ResultCode disableAccount(String username) {
+
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // =========================================================
+    // FIND USER
+    // =========================================================
+
+    public Optional<Account> findByUsername(String username) {
+
+        if (username == null) {
+            return Optional.empty();
+        }
+
+        return Optional.ofNullable(
+                accountsByUsername.get(key(username))
+        );
+    }
+
+    // =========================================================
+    // CHECK LOCKED
+    // =========================================================
 
     public boolean isLocked(String username) {
+
         Optional<Account> account = findByUsername(username);
 
-        return account.isPresent() && account.get().isLocked();
+        return account.isPresent()
+                && account.get().isLocked();
     }
 
+    // =========================================================
+    // UNLOCK
+    // =========================================================
+
     public ResultCode unlockAccount(String username) {
+
         Optional<Account> account = findByUsername(username);
 
         if (account.isEmpty()) {
@@ -155,6 +268,10 @@ public class AccountService {
 
         return ResultCode.SUCCESS;
     }
+
+    // =========================================================
+    // HELPER
+    // =========================================================
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
