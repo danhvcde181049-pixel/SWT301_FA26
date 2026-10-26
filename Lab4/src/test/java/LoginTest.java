@@ -16,6 +16,7 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.time.Duration;
 import java.util.Map;
@@ -172,6 +173,43 @@ public class LoginTest {
 
         return message.getText().trim();
     }
+
+
+    @ParameterizedTest(name = "CSV [{index}]: {0} / {1} -> {2}")
+    @Order(4)
+    @CsvFileSource(
+            resources = "/login-data.csv",
+            numLinesToSkip = 1
+    )
+    @DisplayName("Login with data from external CSV file")
+    void testLoginWithCSV(
+            String username,
+            String password,
+            String expectedResult
+    ) {
+        driver.get(LOGIN_URL);
+
+        username = (username == null) ? "" : username.trim();
+        password = (password == null) ? "" : password.trim();
+
+        enterCredentials(username, password);
+        clickLogin();
+
+        String message = getFlashMessage();
+
+        if ("success".equals(expectedResult)) {
+            assertTrue(
+                    message.contains("You logged into a secure area!"),
+                    "Expected successful login, but got: " + message
+            );
+        } else {
+            assertTrue(
+                    message.toLowerCase().contains("invalid"),
+                    "Expected login error, but got: " + message
+            );
+        }
+    }
+
 
     @AfterAll
     static void tearDown() {
